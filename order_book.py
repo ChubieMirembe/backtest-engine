@@ -1,5 +1,5 @@
 from copy import deepcopy
-from typing import Dict, Tuple, Optional
+from typing import Dict, Optional, Tuple
 
 from models import Order, BookSnapshot
 
@@ -11,13 +11,8 @@ class OrderBook:
         self.last_timestamp_ns: Optional[int] = None
 
     def process_message(self, msg, decoded) -> bool:
-        """
-        Updates live order state.
-        Returns True only when the target stock book changed.
-        """
         mtype = msg.message_type
 
-        # A = Add Order
         if mtype == b"A" and decoded.stock == self.target_stock:
             self.orders[msg.order_reference_number] = Order(
                 side=decoded.buy_sell_indicator,
@@ -27,7 +22,6 @@ class OrderBook:
             self.last_timestamp_ns = msg.timestamp
             return True
 
-        # E = Execute
         elif mtype == b"E" and msg.order_reference_number in self.orders:
             self.orders[msg.order_reference_number].shares -= decoded.executed_shares
             if self.orders[msg.order_reference_number].shares <= 0:
@@ -35,7 +29,6 @@ class OrderBook:
             self.last_timestamp_ns = msg.timestamp
             return True
 
-        # X = Cancel
         elif mtype == b"X" and msg.order_reference_number in self.orders:
             self.orders[msg.order_reference_number].shares -= decoded.cancelled_shares
             if self.orders[msg.order_reference_number].shares <= 0:
@@ -43,13 +36,11 @@ class OrderBook:
             self.last_timestamp_ns = msg.timestamp
             return True
 
-        # D = Delete
         elif mtype == b"D" and msg.order_reference_number in self.orders:
             del self.orders[msg.order_reference_number]
             self.last_timestamp_ns = msg.timestamp
             return True
 
-        # U = Replace
         elif mtype == b"U" and msg.order_reference_number in self.orders:
             old_order = self.orders[msg.order_reference_number]
             new_order = Order(
