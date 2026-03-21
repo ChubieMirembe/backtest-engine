@@ -86,7 +86,7 @@ class QueueDynamicsStrategy(Strategy):
                 bid_depletion = True
                 bid_dep_ratio = (prev_bid_size - curr_bid_size) / prev_bid_size
 
-        elif snapshot.best_bid < self.prev_snapshot.best_bid:
+        elif self.prev_snapshot.best_bid is not None and snapshot.best_bid < self.prev_snapshot.best_bid:
             bid_depletion = True
 
         if snapshot.best_ask == self.prev_snapshot.best_ask:
@@ -98,7 +98,7 @@ class QueueDynamicsStrategy(Strategy):
                 ask_depletion = True
                 ask_dep_ratio = (prev_ask_size - curr_ask_size) / prev_ask_size
 
-        elif snapshot.best_ask > self.prev_snapshot.best_ask:
+        elif self.prev_snapshot.best_ask is not None and snapshot.best_ask > self.prev_snapshot.best_ask:
             ask_depletion = True
 
         if bid_velocity is not None and self.prev_bid_velocity is not None:

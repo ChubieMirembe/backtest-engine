@@ -116,7 +116,7 @@ def build_strategy(name: str):
 
 
 def main():
-    strategy_name = "ofi"  # Change this to select different strategies: "ofi", "mlofi", "microprice", "ofi_persistence", "queue_dynamics", "depletion"
+    strategy_name = "qi"  # Change this to select different strategies: "ofi", "mlofi", "microprice", "ofi_persistence", "queue_dynamics", "depletion"
     strategy = build_strategy(strategy_name)
 
     engine = BacktestEngine(

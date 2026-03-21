@@ -101,6 +101,7 @@ class BacktestEngine:
             self.pnl.total_fees += fee_cost
             self.pnl.total_slippage += slippage_cost
             self.pnl.realized_pnl -= fee_cost
+            self.pnl.realized_pnl -= slippage_cost
 
             self.metrics.on_entry()
 
@@ -126,6 +127,7 @@ class BacktestEngine:
             self.pnl.total_fees += fee_cost
             self.pnl.total_slippage += slippage_cost
             self.pnl.realized_pnl -= fee_cost
+            self.pnl.realized_pnl -= slippage_cost
 
             self.metrics.on_entry()
 
@@ -141,7 +143,7 @@ class BacktestEngine:
 
         elif signal.action == "EXIT_LONG" and self.position.side == 1:
             gross_pnl = (exec_price - self.position.entry_price) * self.position.quantity
-            net_pnl = gross_pnl - fee_cost
+            net_pnl = gross_pnl - fee_cost - slippage_cost
 
             self.pnl.gross_realized_pnl += gross_pnl
             self.pnl.total_fees += fee_cost
@@ -176,7 +178,7 @@ class BacktestEngine:
 
         elif signal.action == "EXIT_SHORT" and self.position.side == -1:
             gross_pnl = (self.position.entry_price - exec_price) * self.position.quantity
-            net_pnl = gross_pnl - fee_cost
+            net_pnl = gross_pnl - fee_cost - slippage_cost
 
             self.pnl.gross_realized_pnl += gross_pnl
             self.pnl.total_fees += fee_cost

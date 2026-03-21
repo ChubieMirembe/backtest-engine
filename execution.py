@@ -127,7 +127,7 @@ class ExecutionSimulator:
 
         total_fees = position.entry_fees + exit_fees
         total_slippage = position.entry_slippage + exit_slippage
-        net_pnl = gross_pnl - total_fees
+        net_pnl = gross_pnl - total_fees - total_slippage
         holding_time_ns = exit_timestamp_ns - position.entry_timestamp_ns
 
         return TradeRecord(
