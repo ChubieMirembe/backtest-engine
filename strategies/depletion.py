@@ -5,22 +5,6 @@ from strategies.base import Strategy
 
 
 class DepletionStrategy(Strategy):
-    """
-    Depletion-first strategy.
-
-    Long idea:
-    - spread is tight
-    - imbalance is positive enough
-    - ask side is getting depleted or already thin
-    - optional persistence to avoid one-tick toggles
-
-    Short idea:
-    - spread is tight
-    - imbalance is negative enough
-    - bid side is getting depleted or already thin
-    - optional persistence to avoid one-tick toggles
-    """
-
     def __init__(
         self,
         quantity: int = 1,
@@ -46,7 +30,6 @@ class DepletionStrategy(Strategy):
         self.debug = debug
 
         self.prev_snapshot: Optional[BookSnapshot] = None
-
         self.long_setup_streak = 0
         self.short_setup_streak = 0
 
@@ -63,56 +46,38 @@ class DepletionStrategy(Strategy):
             return False
         return (snapshot.timestamp_ns - position.entry_timestamp_ns) >= self.max_holding_time_ns
 
-    def _same_level_ask_depletion(
-        self,
-        snapshot: BookSnapshot,
-        prev_snapshot: Optional[BookSnapshot],
-    ):
+    def _same_level_ask_depletion(self, snapshot: BookSnapshot, prev_snapshot: Optional[BookSnapshot]):
         if prev_snapshot is None:
             return False, None
-
         if snapshot.best_ask is None or prev_snapshot.best_ask is None:
             return False, None
-
         if snapshot.best_ask != prev_snapshot.best_ask:
             return False, None
 
         prev_size = prev_snapshot.best_ask_size
         curr_size = snapshot.best_ask_size
-
         if prev_size <= 0:
             return False, None
-
         if curr_size < prev_size:
             ratio = (prev_size - curr_size) / prev_size
             return True, ratio
-
         return False, None
 
-    def _same_level_bid_depletion(
-        self,
-        snapshot: BookSnapshot,
-        prev_snapshot: Optional[BookSnapshot],
-    ):
+    def _same_level_bid_depletion(self, snapshot: BookSnapshot, prev_snapshot: Optional[BookSnapshot]):
         if prev_snapshot is None:
             return False, None
-
         if snapshot.best_bid is None or prev_snapshot.best_bid is None:
             return False, None
-
         if snapshot.best_bid != prev_snapshot.best_bid:
             return False, None
 
         prev_size = prev_snapshot.best_bid_size
         curr_size = snapshot.best_bid_size
-
         if prev_size <= 0:
             return False, None
-
         if curr_size < prev_size:
             ratio = (prev_size - curr_size) / prev_size
             return True, ratio
-
         return False, None
 
     def _ask_thin(self, snapshot: BookSnapshot) -> bool:
@@ -157,33 +122,20 @@ class DepletionStrategy(Strategy):
             )
         )
 
-        if long_setup:
-            self.long_setup_streak += 1
-        else:
-            self.long_setup_streak = 0
-
-        if short_setup:
-            self.short_setup_streak += 1
-        else:
-            self.short_setup_streak = 0
+        self.long_setup_streak = self.long_setup_streak + 1 if long_setup else 0
+        self.short_setup_streak = self.short_setup_streak + 1 if short_setup else 0
 
         self._log(
             {
                 "timestamp_ns": snapshot.timestamp_ns,
                 "spread": spread,
                 "imbalance": imbalance,
-                "best_bid": snapshot.best_bid,
-                "best_bid_size": snapshot.best_bid_size,
-                "best_ask": snapshot.best_ask,
-                "best_ask_size": snapshot.best_ask_size,
                 "ask_thin": ask_thin,
                 "bid_thin": bid_thin,
                 "same_ask_dep": same_ask_dep,
                 "ask_dep_ratio": ask_dep_ratio,
                 "same_bid_dep": same_bid_dep,
                 "bid_dep_ratio": bid_dep_ratio,
-                "long_setup": long_setup,
-                "short_setup": short_setup,
                 "long_streak": self.long_setup_streak,
                 "short_streak": self.short_setup_streak,
             }
@@ -198,12 +150,6 @@ class DepletionStrategy(Strategy):
                     reason="depletion_long",
                     price=snapshot.mid_price,
                     quantity=self.quantity,
-                    metadata={
-                        "spread": spread,
-                        "imbalance": imbalance,
-                        "ask_thin": ask_thin,
-                        "ask_dep_ratio": ask_dep_ratio,
-                    },
                 )
 
             if self.short_setup_streak >= self.persistence_required:
@@ -214,23 +160,15 @@ class DepletionStrategy(Strategy):
                     reason="depletion_short",
                     price=snapshot.mid_price,
                     quantity=self.quantity,
-                    metadata={
-                        "spread": spread,
-                        "imbalance": imbalance,
-                        "bid_thin": bid_thin,
-                        "bid_dep_ratio": bid_dep_ratio,
-                    },
                 )
 
         elif position.side == 1:
-            long_support_broken = (
+            if (
                 spread > self.max_spread
                 or imbalance < 0
                 or (same_bid_dep and bid_dep_ratio is not None and bid_dep_ratio >= self.min_depletion_ratio)
                 or self._holding_time_expired(snapshot, position)
-            )
-
-            if long_support_broken:
+            ):
                 self.prev_snapshot = snapshot
                 return Signal(
                     timestamp_ns=snapshot.timestamp_ns,
@@ -241,14 +179,12 @@ class DepletionStrategy(Strategy):
                 )
 
         elif position.side == -1:
-            short_support_broken = (
+            if (
                 spread > self.max_spread
                 or imbalance > 0
                 or (same_ask_dep and ask_dep_ratio is not None and ask_dep_ratio >= self.min_depletion_ratio)
                 or self._holding_time_expired(snapshot, position)
-            )
-
-            if short_support_broken:
+            ):
                 self.prev_snapshot = snapshot
                 return Signal(
                     timestamp_ns=snapshot.timestamp_ns,
