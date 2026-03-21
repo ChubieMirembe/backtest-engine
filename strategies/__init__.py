@@ -1,3 +1,4 @@
 from strategies.imbalance import ImbalanceStrategy
 from strategies.queue_dynamics import QueueDynamicsStrategy
 from strategies.observer import ObserverStrategy
+from strategies.depletion import DepletionStrategy

@@ -14,27 +14,21 @@ from config import (
     PRINT_EVERY_EVENT,
 )
 from engine import BacktestEngine
-from strategies import ObserverStrategy
-from strategies import QueueDynamicsStrategy
+from strategies import DepletionStrategy
 
 
 def main():
-    # strategy = QueueDynamicsStrategy(
-    #     quantity=TRADE_QUANTITY,
-    #     max_spread=0.50,
-    #     min_imbalance=0.10,
-    #     min_bid_velocity_per_ns=0.0,
-    #     min_ask_velocity_per_ns=0.0,
-    #     min_bid_acceleration_per_ns2=0.0,
-    #     min_ask_acceleration_per_ns2=0.0,
-    #     min_depletion_ratio=0.10,
-    #     max_holding_time_ns=30_000_000_000,
-    #     debug=False,
-    # )
-    
-    strategy = ObserverStrategy(
-       print_every_update=True,
-       only_print_when_interesting=True,
+    strategy = DepletionStrategy(
+        quantity=TRADE_QUANTITY,
+        max_spread=0.50,
+        min_imbalance_long=0.20,
+        max_imbalance_short=-0.20,
+        min_depletion_ratio=0.10,
+        thin_ask_threshold=10,
+        thin_bid_threshold=10,
+        persistence_required=2,
+        max_holding_time_ns=30_000_000_000,
+        debug=True,
     )
 
     engine = BacktestEngine(
