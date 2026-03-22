@@ -1,4 +1,4 @@
-from models import BookSnapshot, PositionState, Signal
+from src.models import BookSnapshot, PositionState, Signal
 from strategies.base import Strategy
 
 
@@ -10,7 +10,7 @@ class OFIStrategy(Strategy):
         e_bid =
             +Q_bid_t      if P_bid_t > P_bid_t-1
             -(Q_bid_t-1)  if P_bid_t < P_bid_t-1
-            Q_bid_t - Q_bid_t-1 otherwise
+           Q_bid_t - Q_bid_t-1 otherwise
 
         e_ask =
             -(Q_ask_t)      if P_ask_t < P_ask_t-1

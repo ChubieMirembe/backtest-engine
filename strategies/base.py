@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from models import BookSnapshot, PositionState, Signal
+from src.models import BookSnapshot, PositionState, Signal
 
 
 class Strategy(ABC):
