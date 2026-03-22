@@ -2,8 +2,9 @@ from models import PerformanceMetrics, TradeRecord, PnLState, PositionState
 
 
 class MetricsTracker:
-    def __init__(self):
+    def __init__(self, starting_capital: float = 0.0):
         self.metrics = PerformanceMetrics()
+        self.starting_capital = starting_capital
 
     def on_entry(self):
         self.metrics.entries += 1
@@ -27,12 +28,13 @@ class MetricsTracker:
             self.metrics.breakeven_trades += 1
 
     def on_event_equity(self, total_pnl: float, position: PositionState):
-        self.metrics.equity_curve.append(total_pnl)
+        equity = self.starting_capital + total_pnl
+        self.metrics.equity_curve.append(equity)
 
-        if total_pnl > self.metrics.equity_peak:
-            self.metrics.equity_peak = total_pnl
+        if equity > self.metrics.equity_peak:
+            self.metrics.equity_peak = equity
 
-        drawdown = self.metrics.equity_peak - total_pnl
+        drawdown = self.metrics.equity_peak - equity
         self.metrics.drawdown_curve.append(drawdown)
         self.metrics.max_drawdown = max(self.metrics.max_drawdown, drawdown)
 

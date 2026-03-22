@@ -177,8 +177,9 @@ class QueueImbalanceStrategy(Strategy):
                 price=snapshot.mid_price,
             )
 
-        crossed_long = self.prev_qi < self.long_threshold and qi >= self.long_threshold
-        crossed_short = self.prev_qi > self.short_threshold and qi <= self.short_threshold
+        prev_qi = self.prev_qi
+        crossed_long = prev_qi < self.long_threshold and qi >= self.long_threshold
+        crossed_short = prev_qi > self.short_threshold and qi <= self.short_threshold
 
         if position.is_flat:
             if self.allow_long and self.long_armed and crossed_long:
@@ -192,7 +193,7 @@ class QueueImbalanceStrategy(Strategy):
                     quantity=self.quantity,
                     metadata={
                         "qi": qi,
-                        "prev_qi": self.prev_qi,
+                        "prev_qi": prev_qi,
                         "spread": spread,
                     },
                 )
@@ -208,7 +209,7 @@ class QueueImbalanceStrategy(Strategy):
                     quantity=self.quantity,
                     metadata={
                         "qi": qi,
-                        "prev_qi": self.prev_qi,
+                        "prev_qi": prev_qi,
                         "spread": spread,
                     },
                 )

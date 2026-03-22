@@ -26,6 +26,7 @@ class BacktestEngine:
         max_trades: int,
         cooldown_ns: int,
         print_every_event: bool = True,
+        starting_capital: float = 100000.0,
     ):
         self.file_path = file_path
         self.target_stock = target_stock
@@ -33,6 +34,7 @@ class BacktestEngine:
         self.strategy = strategy
         self.max_events = max_events
         self.print_every_event = print_every_event
+        self.starting_capital = starting_capital
 
         self.loader = ITCHDataLoader(file_path=file_path, message_types=message_types)
         self.book = OrderBook(target_stock=target_stock)
@@ -55,7 +57,7 @@ class BacktestEngine:
             )
         )
 
-        self.metrics = MetricsTracker()
+        self.metrics = MetricsTracker(starting_capital=self.starting_capital)
         self.reporter = BacktestReporter()
 
         self.position = PositionState()

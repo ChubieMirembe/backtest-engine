@@ -1,5 +1,3 @@
-
-    
 from config import (
     FILE_PATH,
     TARGET_STOCK,
@@ -11,6 +9,7 @@ from config import (
     ALLOW_SHORTS,
     MAX_POSITION_SIZE,
     MAX_NOTIONAL,
+    STARTING_CAPITAL,
     MAX_TRADES,
     COOLDOWN_NS,
     PRINT_EVERY_EVENT,
@@ -137,6 +136,7 @@ def main():
         allow_shorts=ALLOW_SHORTS,
         max_position_size=MAX_POSITION_SIZE,
         max_notional=MAX_NOTIONAL,
+        starting_capital=STARTING_CAPITAL,
         max_trades=MAX_TRADES,
         cooldown_ns=COOLDOWN_NS,
         print_every_event=PRINT_EVERY_EVENT,
