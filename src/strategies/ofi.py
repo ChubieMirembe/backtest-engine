@@ -1,33 +1,44 @@
-from src.models import BookSnapshot, PositionState, Signal
+from models import BookSnapshot, PositionState, Signal
 from strategies.base import Strategy
 
 
-class MLOFIStrategy(Strategy):
+class OFIStrategy(Strategy):
     """
-    Multi-Level OFI using the first N bid/ask levels from BookSnapshot.
+    Order Flow Imbalance (OFI), approximated from consecutive top-of-book snapshots.
 
-    Approximates OFI at each level from aggregated level sizes across snapshots,
-    then takes a weighted sum.
+    For each update:
+        e_bid =
+            +Q_bid_t      if P_bid_t > P_bid_t-1
+            -(Q_bid_t-1)  if P_bid_t < P_bid_t-1
+           Q_bid_t - Q_bid_t-1 otherwise
 
-    This is not order-ID level MLOFI, but it is a useful depth-aware approximation
-    that works with your current snapshot interface.
+        e_ask =
+            -(Q_ask_t)      if P_ask_t < P_ask_t-1
+            +(Q_ask_t-1)    if P_ask_t > P_ask_t-1
+            -(Q_ask_t - Q_ask_t-1) otherwise
+
+        OFI = e_bid + e_ask
+
+    Long:
+        OFI >= long_threshold
+        spread <= max_spread
+
+    Short:
+        OFI <= short_threshold
+        spread <= max_spread
     """
 
     def __init__(
         self,
         quantity: int = 1,
-        levels: int = 3,
-        weights: list[float] | None = None,
         max_spread: float = 0.50,
-        long_threshold: float = 100.0,
-        short_threshold: float = -100.0,
-        exit_band: float = 20.0,
+        long_threshold: float = 50.0,
+        short_threshold: float = -50.0,
+        exit_band: float = 10.0,
         max_holding_time_ns: int | None = None,
         debug: bool = False,
     ):
         self.quantity = quantity
-        self.levels = levels
-        self.weights = weights if weights is not None else [1.0 / (i + 1) for i in range(levels)]
         self.max_spread = max_spread
         self.long_threshold = long_threshold
         self.short_threshold = short_threshold
@@ -39,7 +50,7 @@ class MLOFIStrategy(Strategy):
 
     def _log(self, payload):
         if self.debug:
-            print("MLOFI_DEBUG", payload)
+            print("OFI_DEBUG", payload)
 
     def _holding_time_expired(self, snapshot: BookSnapshot, position: PositionState) -> bool:
         if (
@@ -50,25 +61,27 @@ class MLOFIStrategy(Strategy):
             return False
         return (snapshot.timestamp_ns - position.entry_timestamp_ns) >= self.max_holding_time_ns
 
-    def _top_bid_levels(self, snapshot: BookSnapshot) -> list[tuple[float, int]]:
-        return sorted(snapshot.bid_levels.items(), key=lambda x: x[0], reverse=True)[: self.levels]
+    def _compute_ofi(self, current: BookSnapshot, prev: BookSnapshot) -> float:
+        e_bid = 0.0
+        e_ask = 0.0
 
-    def _top_ask_levels(self, snapshot: BookSnapshot) -> list[tuple[float, int]]:
-        return sorted(snapshot.ask_levels.items(), key=lambda x: x[0])[: self.levels]
+        if current.best_bid is not None and prev.best_bid is not None:
+            if current.best_bid > prev.best_bid:
+                e_bid = float(current.best_bid_size)
+            elif current.best_bid < prev.best_bid:
+                e_bid = -float(prev.best_bid_size)
+            else:
+                e_bid = float(current.best_bid_size - prev.best_bid_size)
 
-    def _level_ofi(self, curr_levels: list[tuple[float, int]], prev_levels: list[tuple[float, int]], is_bid: bool) -> list[float]:
-        curr_map = {p: q for p, q in curr_levels}
-        prev_map = {p: q for p, q in prev_levels}
-        all_prices = sorted(set(curr_map.keys()) | set(prev_map.keys()), reverse=is_bid)
+        if current.best_ask is not None and prev.best_ask is not None:
+            if current.best_ask < prev.best_ask:
+                e_ask = float(-current.best_ask_size)
+            elif current.best_ask > prev.best_ask:
+                e_ask = float(prev.best_ask_size)
+            else:
+                e_ask = float(-(current.best_ask_size - prev.best_ask_size))
 
-        out = []
-        for price in all_prices[: self.levels]:
-            curr_q = curr_map.get(price, 0)
-            prev_q = prev_map.get(price, 0)
-            out.append(float(curr_q - prev_q))
-        while len(out) < self.levels:
-            out.append(0.0)
-        return out[: self.levels]
+        return e_bid + e_ask
 
     def on_book_update(self, snapshot: BookSnapshot, position: PositionState) -> Signal:
         if snapshot.best_bid is None or snapshot.best_ask is None or snapshot.mid_price is None:
@@ -83,32 +96,24 @@ class MLOFIStrategy(Strategy):
             self.prev_snapshot = snapshot
             return Signal(snapshot.timestamp_ns, "HOLD", "insufficient_history", price=snapshot.mid_price)
 
-        curr_bid_levels = self._top_bid_levels(snapshot)
-        prev_bid_levels = self._top_bid_levels(self.prev_snapshot)
-        curr_ask_levels = self._top_ask_levels(snapshot)
-        prev_ask_levels = self._top_ask_levels(self.prev_snapshot)
-
-        bid_ofi = self._level_ofi(curr_bid_levels, prev_bid_levels, is_bid=True)
-        ask_ofi = self._level_ofi(curr_ask_levels, prev_ask_levels, is_bid=False)
-
-        weighted_ofi = 0.0
-        for i in range(self.levels):
-            weighted_ofi += self.weights[i] * bid_ofi[i]
-            weighted_ofi -= self.weights[i] * ask_ofi[i]
+        ofi = self._compute_ofi(snapshot, self.prev_snapshot)
+        spread = snapshot.spread
 
         self._log(
             {
                 "timestamp_ns": snapshot.timestamp_ns,
-                "weighted_ofi": weighted_ofi,
-                "bid_ofi": bid_ofi,
-                "ask_ofi": ask_ofi,
-                "spread": snapshot.spread,
+                "ofi": ofi,
+                "spread": spread,
+                "best_bid": snapshot.best_bid,
+                "best_bid_size": snapshot.best_bid_size,
+                "best_ask": snapshot.best_ask,
+                "best_ask_size": snapshot.best_ask_size,
             }
         )
 
         self.prev_snapshot = snapshot
 
-        if snapshot.spread > self.max_spread:
+        if spread > self.max_spread:
             if position.side == 1:
                 return Signal(snapshot.timestamp_ns, "EXIT_LONG", "spread_too_wide", price=snapshot.mid_price, quantity=position.quantity)
             if position.side == -1:
@@ -116,44 +121,44 @@ class MLOFIStrategy(Strategy):
             return Signal(snapshot.timestamp_ns, "HOLD", "spread_too_wide", price=snapshot.mid_price)
 
         if position.is_flat:
-            if weighted_ofi >= self.long_threshold:
+            if ofi >= self.long_threshold:
                 return Signal(
                     timestamp_ns=snapshot.timestamp_ns,
                     action="BUY",
-                    reason="mlofi_long",
+                    reason="ofi_long",
                     price=snapshot.mid_price,
                     quantity=self.quantity,
-                    metadata={"weighted_ofi": weighted_ofi},
+                    metadata={"ofi": ofi, "spread": spread},
                 )
 
-            if weighted_ofi <= self.short_threshold:
+            if ofi <= self.short_threshold:
                 return Signal(
                     timestamp_ns=snapshot.timestamp_ns,
                     action="SELL",
-                    reason="mlofi_short",
+                    reason="ofi_short",
                     price=snapshot.mid_price,
                     quantity=self.quantity,
-                    metadata={"weighted_ofi": weighted_ofi},
+                    metadata={"ofi": ofi, "spread": spread},
                 )
 
             return Signal(snapshot.timestamp_ns, "HOLD", "no_action", price=snapshot.mid_price)
 
         if position.side == 1:
-            if weighted_ofi <= self.exit_band or self._holding_time_expired(snapshot, position):
+            if ofi <= self.exit_band or self._holding_time_expired(snapshot, position):
                 return Signal(
                     timestamp_ns=snapshot.timestamp_ns,
                     action="EXIT_LONG",
-                    reason="mlofi_exit_long",
+                    reason="ofi_exit_long",
                     price=snapshot.mid_price,
                     quantity=position.quantity,
                 )
 
         if position.side == -1:
-            if weighted_ofi >= -self.exit_band or self._holding_time_expired(snapshot, position):
+            if ofi >= -self.exit_band or self._holding_time_expired(snapshot, position):
                 return Signal(
                     timestamp_ns=snapshot.timestamp_ns,
                     action="EXIT_SHORT",
-                    reason="mlofi_exit_short",
+                    reason="ofi_exit_short",
                     price=snapshot.mid_price,
                     quantity=position.quantity,
                 )
