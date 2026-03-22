@@ -28,15 +28,19 @@ from strategies import (
 def build_strategy(name: str):
     if name == "qi":
         return QueueImbalanceStrategy(
-            quantity=TRADE_QUANTITY,
-            max_spread=0.50,
-            long_threshold=0.60,
-            short_threshold=-0.60,
-            long_exit_threshold=0.10,
-            short_exit_threshold=-0.10,
-            max_holding_time_ns=20_000_000_000,
-            debug=True,
-        )
+        quantity=TRADE_QUANTITY,
+        max_spread=0.50,
+        long_threshold=0.70,
+        short_threshold=-0.70,
+        long_exit_threshold=0.30,
+        short_exit_threshold=-0.30,
+        long_reset_threshold=0.20,
+        short_reset_threshold=-0.20,
+        max_holding_time_ns=20_000_000_000,
+        allow_long=True,
+        allow_short=True,
+        debug=True,
+    )
 
     if name == "ofi":
         return OFIStrategy(
